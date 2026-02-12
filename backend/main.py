@@ -17,6 +17,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ================= CLIMA =================
+
 OPENWEATHER_KEY = os.getenv("OPENWEATHER_KEY")
 
 
@@ -24,8 +26,6 @@ OPENWEATHER_KEY = os.getenv("OPENWEATHER_KEY")
 def home():
     return {"status": "API Online"}
 
-
-# ================= CLIMA =================
 
 @app.get("/weather/{city}")
 def get_weather(city: str):
@@ -47,58 +47,101 @@ def get_weather(city: str):
         res.raise_for_status()
         return res.json()
 
-    except Exception:
+    except:
         return {"error": "Erro ao buscar clima"}
 
 
 # ================= CRIPTO =================
 
-@app.get("/crypto")
-def get_crypto():
+COINGECKO = "https://api.coingecko.com/api/v3"
 
-    url = "https://api.coingecko.com/api/v3/simple/price"
+
+@app.get("/crypto/top5")
+def get_top5():
+
+    url = f"{COINGECKO}/coins/markets"
 
     params = {
-        "ids": "bitcoin,ethereum,tether,ripple,binancecoin",
-        "vs_currencies": "brl",
-        "include_24hr_change": "true"
+        "vs_currency": "brl",
+        "order": "market_cap_desc",
+        "per_page": 5,
+        "page": 1,
+        "sparkline": False,
+        "price_change_percentage": "24h"
     }
 
     try:
         res = requests.get(url, params=params, timeout=10)
         res.raise_for_status()
-        return res.json()
 
-    except Exception:
+        coins = res.json()
 
-        return {
-            "bitcoin": {"brl": 0, "brl_24h_change": 0},
-            "ethereum": {"brl": 0, "brl_24h_change": 0},
-            "tether": {"brl": 0, "brl_24h_change": 0},
-            "ripple": {"brl": 0, "brl_24h_change": 0},
-            "binancecoin": {"brl": 0, "brl_24h_change": 0}
-        }
+        result = []
+
+        for c in coins:
+            result.append({
+                "id": c["id"],
+                "name": c["name"],
+                "symbol": c["symbol"].upper(),
+                "image": c["image"],
+                "price": round(c["current_price"], 2),
+                "change": round(c["price_change_percentage_24h"], 2),
+                "rank": c["market_cap_rank"]
+            })
+
+        return result
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
-@app.get("/crypto/history/{coin}")
-def get_history(coin: str):
-
-    url = f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart"
-
-    params = {
-        "vs_currency": "brl",
-        "days": 7
-    }
+@app.get("/crypto/details/{coin_id}")
+def get_crypto_details(coin_id: str):
 
     try:
-        res = requests.get(url, params=params, timeout=10)
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
+
+        res = requests.get(url, params={
+            "localization": "false",
+            "tickers": "false",
+            "market_data": "true",
+            "community_data": "false",
+            "developer_data": "false",
+            "sparkline": "false"
+        }, timeout=10)
+
         res.raise_for_status()
 
         data = res.json()
 
-        prices = [p[1] for p in data["prices"]]
+        # Histórico separado (7 dias)
+        history_url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
 
-        return prices
+        history_res = requests.get(history_url, params={
+            "vs_currency": "brl",
+            "days": 7
+        }, timeout=10)
 
-    except Exception:
-        return []
+        history_res.raise_for_status()
+
+        history_data = history_res.json()
+
+        prices = [p[1] for p in history_data["prices"]]
+
+        return {
+            "id": data["id"],
+            "name": data["name"],
+            "symbol": data["symbol"],
+            "image": data["image"]["large"],
+            "price": data["market_data"]["current_price"]["brl"],
+            "change": data["market_data"]["price_change_percentage_24h"],
+            "rank": data["market_cap_rank"],
+            "history": prices
+        }
+
+    except Exception as e:
+        print("Erro crypto:", e)
+
+        return {
+            "error": str(e)
+        }

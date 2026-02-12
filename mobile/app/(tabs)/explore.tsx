@@ -2,252 +2,220 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
-  ScrollView,
-  Dimensions,
-  ActivityIndicator
+  FlatList,
+  ActivityIndicator,
+  TouchableOpacity,
 } from "react-native";
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-
-import { LineChart } from "react-native-chart-kit";
-
-const API = process.env.EXPO_PUBLIC_API_URL;
-const { width } = Dimensions.get("window");
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 
 
-const COINS: any = {
-  bitcoin: "BTC",
-  ethereum: "ETH",
-  tether: "USDT",
-  ripple: "XRP",
-  binancecoin: "BNB"
-};
+const API = "http://192.168.0.162:8000";
+
+
+interface Coin {
+  id: string;
+  name: string;
+  symbol: string;
+  image: string;
+  price: number;
+  change: number;
+  rank: number;
+}
 
 
 export default function CryptoScreen() {
 
-  const [prices, setPrices] = useState<any>(null);
-  const [history, setHistory] = useState<number[]>([]);
-  const [coin, setCoin] = useState("bitcoin");
-  const [loading, setLoading] = useState(false);
+  const [coins, setCoins] = useState<Coin[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const router = useRouter();
 
 
-  async function loadAll(target = "bitcoin") {
-
-    setLoading(true);
+  async function loadCoins() {
 
     try {
 
-      const res = await axios.get(`${API}/crypto`);
-      setPrices(res.data);
+      const res = await axios.get(`${API}/crypto/top5`);
 
-      const chart = await axios.get(`${API}/crypto/history/${target}`);
-      setHistory(chart.data);
+      setCoins(res.data);
 
-    } catch {
-      setHistory([]);
+    } catch (err) {
+      console.log("Erro:", err);
     }
 
-    setLoading(false);
+    finally {
+      setLoading(false);
+    }
   }
 
 
   useEffect(() => {
-    loadAll(coin);
+    loadCoins();
   }, []);
 
 
-  function searchCoin(text: string) {
+  function openCoin(id: string) {
 
-    const name = text.toLowerCase();
+    router.push(`/crypto/${id}`);
+  }
 
-    if (COINS[name]) {
-      setCoin(name);
-      loadAll(name);
-    }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#00e5ff" />
+        <Text style={{ color: "#aaa", marginTop: 10 }}>
+          Carregando criptos...
+        </Text>
+      </View>
+    );
   }
 
 
   return (
-    <ScrollView style={styles.container}>
 
-      <Text style={styles.title}>💰 Criptos</Text>
+    <View style={styles.container}>
 
-      {/* Busca */}
+      <Text style={styles.title}>💰 Top 5 Criptos</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="bitcoin, ethereum..."
-        placeholderTextColor="#64748b"
-        onSubmitEditing={e => searchCoin(e.nativeEvent.text)}
+      <FlatList
+
+        data={coins}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+
+        renderItem={({ item }) => (
+
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => openCoin(item.id)}
+          >
+
+            {/* Rank */}
+            <Text style={styles.rank}>#{item.rank}</Text>
+
+
+            {/* Ícone */}
+            <Image
+              source={{ uri: item.image }}
+              style={styles.icon}
+            />
+
+
+            {/* Nome */}
+            <View style={{ flex: 1 }}>
+
+              <Text style={styles.name}>
+                {item.symbol.toUpperCase()}
+              </Text>
+
+              <Text style={styles.fullName}>
+                {item.name}
+              </Text>
+
+            </View>
+
+
+            {/* Preço */}
+            <View style={{ alignItems: "flex-end" }}>
+
+              <Text style={styles.price}>
+                R$ {item.price.toLocaleString("pt-BR")}
+              </Text>
+
+              <Text
+                style={[
+                  styles.change,
+                  {
+                    color:
+                      item.change >= 0
+                        ? "#00ff9c"
+                        : "#ff4d4d",
+                  },
+                ]}
+              >
+                {item.change.toFixed(2)}%
+              </Text>
+
+            </View>
+
+          </TouchableOpacity>
+        )}
       />
 
-
-      {/* Gráfico */}
-
-      <View style={styles.chartBox}>
-
-        <Text style={styles.chartTitle}>
-          {coin.toUpperCase()} - 7 dias
-        </Text>
-
-        {loading ? (
-
-          <ActivityIndicator color="#38bdf8" />
-
-        ) : (
-
-          <LineChart
-            data={{
-              labels: [],
-              datasets: [{ data: history }]
-            }}
-            width={width - 70}
-            height={200}
-            bezier
-            withDots={false}
-            withInnerLines={false}
-            chartConfig={chartConfig}
-          />
-
-        )}
-
-      </View>
-
-
-      {/* Ranking */}
-
-      <Text style={styles.subtitle}>Top 5</Text>
-
-      {prices && Object.keys(COINS).map((key, i) => (
-
-        <View key={key} style={styles.row}>
-
-          <Text style={styles.rank}>#{i + 1}</Text>
-
-          <Text style={styles.coin}>
-            {COINS[key]}
-          </Text>
-
-          <View style={{ alignItems: "flex-end" }}>
-
-            <Text style={styles.price}>
-              R$ {prices[key]?.brl?.toLocaleString("pt-BR", {
-                minimumFractionDigits: 2
-              })}
-            </Text>
-
-            <Text
-              style={[
-                styles.change,
-                {
-                  color:
-                    prices[key]?.brl_24h_change >= 0
-                      ? "#22c55e"
-                      : "#ef4444"
-                }
-              ]}
-            >
-              {prices[key]?.brl_24h_change.toFixed(2)}%
-            </Text>
-
-          </View>
-
-        </View>
-
-      ))}
-
-    </ScrollView>
+    </View>
   );
 }
-
-
-const chartConfig = {
-
-  backgroundGradientFrom: "#020617",
-  backgroundGradientTo: "#020617",
-
-  color: (o = 1) => `rgba(56,189,248,${o})`,
-
-  strokeWidth: 2
-};
-
-
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
-    backgroundColor: "#020617",
-    padding: 20,
-    paddingTop: 60
+    backgroundColor: "#0f172a",
+    paddingHorizontal: 16,
+    paddingTop: 50,
+  },
+
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0f172a",
   },
 
   title: {
-    color: "#fff",
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: "bold",
-    marginBottom: 15
+    color: "#00e5ff",
+    marginBottom: 20,
+    textAlign: "center",
   },
 
-  input: {
-    backgroundColor: "#0f172a",
-    color: "#fff",
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 20
-  },
-
-  chartBox: {
-    backgroundColor: "#020617",
-    padding: 15,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#1e293b",
-    overflow: "hidden"
-  },
-
-  chartTitle: {
-    color: "#94a3b8",
-    marginBottom: 10,
-    marginLeft: 5
-  },
-
-  subtitle: {
-    color: "#94a3b8",
-    fontSize: 16,
-    marginVertical: 20,
-    fontWeight: "bold"
-  },
-
-  row: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#0f172a",
-    padding: 18,
-    borderRadius: 15,
-    marginBottom: 10
+    backgroundColor: "#020617",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+    elevation: 3,
   },
 
   rank: {
-    color: "#818cf8",
-    fontWeight: "bold"
+    color: "#64748b",
+    fontSize: 14,
+    width: 32,
+    textAlign: "center",
   },
 
-  coin: {
-    color: "#fff",
+  icon: {
+    width: 40,
+    height: 40,
+    marginHorizontal: 12,
+    borderRadius: 20,
+  },
+
+  name: {
+    color: "#f8fafc",
+    fontSize: 16,
     fontWeight: "bold",
-    fontSize: 16
+  },
+
+  fullName: {
+    color: "#94a3b8",
+    fontSize: 12,
   },
 
   price: {
-    color: "#38bdf8",
-    fontWeight: "bold"
+    color: "#f1f5f9",
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   change: {
-    fontSize: 12
-  }
+    fontSize: 13,
+    marginTop: 4,
+  },
 });
