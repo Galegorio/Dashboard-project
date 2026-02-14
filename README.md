@@ -5,7 +5,7 @@ Dashboard mobile/web feito em React Native + FastAPI.
 Mostra:
 
 - Clima em tempo real
-- Preço do Bitcoin e Ethereum
+- Preço das top 5 criptomoedas
 - Histórico em gráfico
 
 ## 🚀 Tecnologias
